@@ -66,6 +66,12 @@ app.config['UPLOAD_FOLDER'] = 'your_custom_upload_folder/'
 
 - Ensure that the server has sufficient permissions to write to the `UPLOAD_FOLDER` directory.
 
+# Usage with Docker
+
+docker pull rdnsx/filedrop
+
+docker run -d -p 3266:5000 -v /path/to/local/filedrop/:/app/uploads --name FileDrop filedrop 
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
