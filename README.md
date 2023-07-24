@@ -70,7 +70,7 @@ app.config['UPLOAD_FOLDER'] = 'your_custom_upload_folder/'
 
 docker pull rdnsx/filedrop
 
-docker run -d -p 3266:5000 -v /path/to/local/filedrop/:/app/uploads --name FileDrop filedrop 
+docker run -d -p 3266:5000 -v /path/to/local/filedrop/:/app/uploads --name FileDrop rdnsx/filedrop 
 
 ## License
 
