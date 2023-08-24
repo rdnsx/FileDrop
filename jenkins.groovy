@@ -9,6 +9,7 @@ pipeline {
         SSH_USER = 'root'
         SSH_HOST = '91.107.199.72'
         SSH_PORT = '22'
+        WEBSITE_URL = 'https://drop2share.de'
         WAIT_TIME = 30
     }
     
