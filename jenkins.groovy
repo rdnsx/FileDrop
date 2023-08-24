@@ -39,7 +39,9 @@ pipeline {
                             ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${SSH_USER}@${SSH_HOST} '
                             mount -a &&
                             cd /mnt/SSS/DockerData/ &&
-                            mkdir drop2share.de/ &&
+                            if [ ! -d "drop2share.de/" ]; then
+                                mkdir drop2share.de/
+                            fi &&
                             cd /mnt/SSS/DockerCompose/ &&
                             rm -rf drop2share.de/ &&
                             mkdir drop2share.de/ &&
