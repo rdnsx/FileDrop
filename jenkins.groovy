@@ -58,10 +58,10 @@ pipeline {
 
                     def response = sh(script: "curl -s ${WEBSITE_URL}", returnStdout: true).trim()
 
-                    if (response.contains('Gamemode')) {
+                    if (response.contains('File')) {
                         echo "Website is up and contains 'File'."
                     } else {
-                        error "Website is not responding properly or does not contain 'Gamemode'."
+                        error "Website is not responding properly or does not contain 'File'."
                     }
 
                 }
