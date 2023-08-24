@@ -7,3 +7,9 @@ services:
       - /mnt/SSS/DockerData/drop2sharede:/app/uploads
     deploy:
       replicas: 3
+
+# Optional add a preexisting proxy network
+networks:
+  default:
+    external:
+      name: npm_default
