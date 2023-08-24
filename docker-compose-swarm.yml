@@ -4,7 +4,7 @@ services:
   filedrop:
     image: rdnsx/filedrop
     volumes:
-      - /mnt/SSS/DockerData/drop2sharede:/app/uploads
+      - /mnt/SSS/DockerData/drop2share.de:/app/uploads
     deploy:
       replicas: 3
 
