@@ -5,7 +5,8 @@ pipeline {
         DOCKER_HUB_CREDENTIALS = 'DockerHub'
         SOURCE_REPO_URL = 'https://github.com/rdnsx/FileDrop.git'
         DOCKER_IMAGE_NAME = 'rdnsx/filedrop'
-        TAG_NAME = 'latest'
+        TAG_NAME = '1.0.0'
+        LATEST_TAG = 'latest'
         SSH_USER = 'root'
         SSH_HOST = '91.107.199.72'
         SSH_PORT = '22'
@@ -26,6 +27,10 @@ pipeline {
                     docker.withRegistry('', DOCKER_HUB_CREDENTIALS) {
                         def dockerImage = docker.build("${DOCKER_IMAGE_NAME}:${TAG_NAME}", ".")
                         dockerImage.push()
+
+                        // Also tag and push with the 'latest' tag
+                        dockerImage.tag("${DOCKER_IMAGE_NAME}:${LATEST_TAG}")
+                        dockerImage.push("${DOCKER_IMAGE_NAME}:${LATEST_TAG}")
                     }
                 }
             }
