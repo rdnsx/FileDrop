@@ -3,13 +3,13 @@ pipeline {
     
     environment {
         DOCKER_HUB_CREDENTIALS = 'DockerHub'
-        SOURCE_REPO_URL = 'https://github.com/rdnsx/Bedrock-Status.git'
-        DOCKER_IMAGE_NAME = 'rdnsx/bedrockstatus'
+        SOURCE_REPO_URL = 'https://github.com/rdnsx/FileDrop.git'
+        DOCKER_IMAGE_NAME = 'rdnsx/filedrop'
         LATEST_TAG = 'latest'
         SSH_USER = 'root'
         SSH_HOST = '91.107.199.72'
         SSH_PORT = '22'
-        WEBSITE_URL = 'https://status.pietscraft.net'
+        WEBSITE_URL = 'https://drop2share.de'
         WAIT_TIME = 30
     }
     
@@ -19,15 +19,18 @@ pipeline {
                 git branch: 'main', url: env.SOURCE_REPO_URL
             }
         }
-        
+
         stage('Get Latest Tag') {
             steps {
                 script {
-                    def dockerHubUrl = "https://hub.docker.com/v2/repositories/${DOCKER_IMAGE_NAME}/tags/?page_size=100"
-                    def response = sh(script: "curl -s ${dockerHubUrl}", returnStdout: true)
-                    def latestTag = findLatestTag(response)
-                    echo "Latest Docker tag found: ${latestTag}"
-                    env.TAG_NAME = incrementTag(latestTag)
+                    def tagsJson = sh(script: "curl -s https://hub.docker.com/v2/repositories/${DOCKER_IMAGE_NAME}/tags/?page_size=10000", returnStdout: true).trim()
+                    def tags = readJSON text: tagsJson
+
+                    def numericTags = tags.results.findAll { it.name =~ /^\d+\.\d+\.\d+$/ }
+                    def latestNumericTag = numericTags.collect { it.name }.sort().last()
+
+                    echo "Latest numeric Docker tag found: ${latestNumericTag}"
+                    env.TAG_NAME = incrementTag(latestNumericTag)
                 }
             }
         }
@@ -53,12 +56,16 @@ pipeline {
                         sh """
                             ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${SSH_USER}@${SSH_HOST} '
                             mount -a &&
+                            cd /mnt/SSS/DockerData/ &&
+                            if [ ! -d "drop2share.de/" ]; then
+                                mkdir drop2share.de/
+                            fi &&
                             cd /mnt/SSS/DockerCompose/ &&
-                            rm -rf Bedrock-Status/ &&
-                            mkdir Bedrock-Status/ &&
-                            cd Bedrock-Status/ &&
-                            wget https://raw.githubusercontent.com/rdnsx/Bedrock-Status/main/docker-compose-swarm.yml &&
-                            docker stack deploy -c docker-compose-swarm.yml Bedrock-Status;'
+                            rm -rf drop2share.de/ &&
+                            mkdir drop2share.de/ &&
+                            cd drop2share.de/ &&
+                            wget https://raw.githubusercontent.com/rdnsx/FileDrop/main/docker-compose-swarm.yml &&
+                            docker stack deploy -c docker-compose-swarm.yml drop2sharede;'
                             """
                     }
                 }
@@ -74,23 +81,16 @@ pipeline {
 
                     def response = sh(script: "curl -s ${WEBSITE_URL}", returnStdout: true).trim()
 
-                    if (response.contains('Gamemode')) {
-                        echo "Website is up and contains 'Gamemode'."
+                    if (response.contains('File')) {
+                        echo "Website is up and contains 'File'."
                     } else {
-                        error "Website is not responding properly or does not contain 'Gamemode'."
+                        error "Website is not responding properly or does not contain 'File'."
                     }
 
                 }
             }
         }
     }
-}
-
-def findLatestTag(response) {
-    def jsonSlurper = new groovy.json.JsonSlurper()
-    def tags = jsonSlurper.parseText(response).results.name
-    def numericTags = tags.findAll { tag -> tag.matches("\\d+(\\.\\d+)*") }
-    return numericTags.max { tag -> tag.tokenize('.').collect { it as Integer } }
 }
 
 def incrementTag(tag) {
