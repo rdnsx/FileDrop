@@ -93,8 +93,10 @@ pipeline {
 def findLatestTag(response) {
     def jsonSlurper = new groovy.json.JsonSlurper()
     def tags = jsonSlurper.parseText(response).results.name
-    return tags.max { tag -> tag.tokenize('.').collect { it as Integer } }
+    def numericTags = tags.findAll { tag -> tag.matches("\\d+(\\.\\d+)*") }
+    return numericTags.max { tag -> tag.tokenize('.').collect { it as Integer } }
 }
+
 
 def incrementTag(tag) {
     def parts = tag.tokenize('.')
