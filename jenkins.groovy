@@ -23,12 +23,11 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    def buildNumber = env.BUILD_NUMBER // Get the Jenkins build number
+                    def buildNumber = env.BUILD_NUMBER
                     docker.withRegistry('', DOCKER_HUB_CREDENTIALS) {
                         def dockerImage = docker.build("${DOCKER_IMAGE_NAME}:${buildNumber}", ".")
                         dockerImage.push()
 
-                        // Tag the image as "latest"
                         dockerImage.tag("latest")
                         dockerImage.push("latest")
                     }
