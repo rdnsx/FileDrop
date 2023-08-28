@@ -89,7 +89,14 @@ pipeline {
 }
 
 def incrementTag(tag) {
-    def parts = tag.tokenize('.')
-    parts[-1] = (parts[-1] as Integer) + 1
-    return parts.join('.')
+    def matcher = tag =~ /(\d+)\.(\d+)\.(\d+)/
+    if (matcher) {
+        def major = matcher[0][1]
+        def minor = matcher[0][2]
+        def patch = matcher[0][3] as Integer
+        patch += 1
+        return "${major}.${minor}.${patch}"
+    } else {
+        return tag
+    }
 }
