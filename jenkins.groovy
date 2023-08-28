@@ -95,7 +95,16 @@ def findLatestTag(response) {
     def tags = jsonSlurper.parseText(response).results.name
     def numericTags = tags.findAll { tag -> tag.matches("\\d+(\\.\\d+)*") }
     def sortedTags = numericTags.sort { a, b ->
-        a.split('.').collect { it.toInteger() } <=> b.split('.').collect { it.toInteger() }
+        def partsA = a.split('\\.')
+        def partsB = b.split('\\.')
+        for (int i = 0; i < Math.min(partsA.size(), partsB.size()); i++) {
+            def numA = partsA[i] as Integer
+            def numB = partsB[i] as Integer
+            if (numA != numB) {
+                return numA <=> numB
+            }
+        }
+        return partsA.size() <=> partsB.size()
     }
     return sortedTags.last()
 }
