@@ -23,9 +23,7 @@ pipeline {
         stage('Get Latest Tag') {
             steps {
                 script {
-                    def dockerHubUrl = "https://hub.docker.com/v2/repositories/${DOCKER_IMAGE_NAME}/tags/?page_size=100"
-                    def response = sh(script: "curl -s ${dockerHubUrl}", returnStdout: true)
-                    def latestTag = findLatestTag(response)
+                    def latestTag = sh(script: "docker search ${DOCKER_IMAGE_NAME} | awk 'NR==2{print \$2}'", returnStdout: true).trim()
                     echo "Latest Docker tag found: ${latestTag}"
                     env.TAG_NAME = incrementTag(latestTag)
                 }
@@ -88,13 +86,6 @@ pipeline {
             }
         }
     }
-}
-
-def findLatestTag(response) {
-    def jsonSlurper = new groovy.json.JsonSlurper()
-    def tags = jsonSlurper.parseText(response).results.name
-    def numericTags = tags.findAll { tag -> tag.matches("\\d+(\\.\\d+)*") }
-    return numericTags.max { tag -> tag.tokenize('.').collect { it as Integer } }
 }
 
 def incrementTag(tag) {
