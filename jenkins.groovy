@@ -37,7 +37,6 @@ pipeline {
                         def dockerImage = docker.build("${DOCKER_IMAGE_NAME}:${TAG_NAME}", ".")
                         dockerImage.push()
 
-                        // Also tag and push with the 'latest' tag
                         dockerImage.tag("${LATEST_TAG}")
                         dockerImage.push("${LATEST_TAG}")
                     }
