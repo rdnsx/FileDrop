@@ -94,30 +94,13 @@ def findLatestTag(response) {
     def jsonSlurper = new groovy.json.JsonSlurper()
     def tags = jsonSlurper.parseText(response).results.name
     def numericTags = tags.findAll { tag -> tag.matches("\\d+(\\.\\d+)*") }
-    
-    def maxTag = null
-    numericTags.each { tag ->
-        if (maxTag == null || compareTags(tag, maxTag) > 0) {
-            maxTag = tag
-        }
-    }
-    
-    return maxTag
+    return numericTags.max { tag -> tag.tokenize('.').collect { it as Integer } }
 }
 
-def compareTags(tag1, tag2) {
-    def parts1 = tag1.tokenize('.').collect { it as Integer }
-    def parts2 = tag2.tokenize('.').collect { it as Integer }
-    
-    for (int i = 0; i < Math.max(parts1.size(), parts2.size()); i++) {
-        def part1 = i < parts1.size() ? parts1[i] : 0
-        def part2 = i < parts2.size() ? parts2[i] : 0
-        if (part1 < part2) {
-            return -1
-        } else if (part1 > part2) {
-            return 1
-        }
-    }
-    
-    return 0
+def incrementTag(tag) {
+    def parts = tag.tokenize('.')
+    def lastPart = parts[-1] as Integer
+    lastPart++
+    parts[-1] = lastPart.toString()
+    return parts.join('.')
 }
