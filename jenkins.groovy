@@ -29,8 +29,8 @@ pipeline {
                         dockerImage.push()
 
                         // Tag the image as "latest"
-                        dockerImage.tag("${DOCKER_IMAGE_NAME}:latest")
-                        dockerImage.push("${DOCKER_IMAGE_NAME}:latest")
+                        dockerImage.tag("latest")
+                        dockerImage.push("latest")
                     }
                 }
             }
