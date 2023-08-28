@@ -5,6 +5,7 @@ pipeline {
         DOCKER_HUB_CREDENTIALS = 'DockerHub'
         SOURCE_REPO_URL = 'https://github.com/rdnsx/FileDrop.git'
         DOCKER_IMAGE_NAME = 'rdnsx/filedrop'
+        TAG_NAME = 'latest'
         SSH_USER = 'root'
         SSH_HOST = '91.107.199.72'
         SSH_PORT = '22'
@@ -22,52 +23,14 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    def latestTag = "latest"
-                    def versionFormat = "1.%d.%d-%d"
-                    def currentMajor = 1
-                    def currentMinor = 0
-                    def currentPatch = 1
-
-                    // Fetch existing tags from Docker Hub
-                    def existingTags = sh(script: "docker search ${DOCKER_IMAGE_NAME} | awk '{print \$2}'", returnStdout: true).trim().split('\n')
-
-                    existingTags.each { tag ->
-                        if (tag =~ /^(1)\.(\d+)\.(\d+)-\d+$/) {
-                            int major = Integer.parseInt(RegExp.$1)
-                            int minor = Integer.parseInt(RegExp.$2)
-                            int patch = Integer.parseInt(RegExp.$3)
-                            if (major == currentMajor && minor == currentMinor && patch >= currentPatch) {
-                                currentPatch = patch + 1
-                            } else if (major == currentMajor && minor < currentMinor) {
-                                currentMinor = minor
-                                currentPatch = 1
-                            } else if (major > currentMajor) {
-                                currentMajor = major
-                                currentMinor = 0
-                                currentPatch = 1
-                            }
-                        }
-                    }
-
-                    if (currentMinor == 0 && currentPatch > 9) {
-                        currentMajor++
-                        currentMinor++
-                        currentPatch = 0
-                    }
-
-                    def customVersionTag = versionFormat.sprintf(currentMajor, currentMinor, currentPatch, env.BUILD_NUMBER)
-
                     docker.withRegistry('', DOCKER_HUB_CREDENTIALS) {
-                        def dockerImageLatest = docker.build("${DOCKER_IMAGE_NAME}:${latestTag}", ".")
-                        def dockerImageCustomVersion = docker.build("${DOCKER_IMAGE_NAME}:${customVersionTag}", ".")
-
-                        dockerImageLatest.push()
-                        dockerImageCustomVersion.push()
+                        def dockerImage = docker.build("${DOCKER_IMAGE_NAME}:${TAG_NAME}", ".")
+                        dockerImage.push()
                     }
                 }
             }
         }
-
+        
         stage('Deploy to Swarm') {
             steps {
                 script {
