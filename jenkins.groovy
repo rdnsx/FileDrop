@@ -24,7 +24,7 @@ pipeline {
             steps {
                 script {
                     def tagsJson = sh(script: "curl -s https://hub.docker.com/v2/repositories/${DOCKER_IMAGE_NAME}/tags/?page_size=10000", returnStdout: true).trim()
-                    def tags = readJSON(text: tagsJson)
+                    def tags = readJSON text: tagsJson
 
                     def numericTags = tags.results.findAll { it.name =~ /^\d+\.\d+\.\d+$/ }
                     def latestNumericTag = numericTags.collect { it.name }.sort().last()
