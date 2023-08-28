@@ -28,7 +28,9 @@ pipeline {
                     def currentMinor = 0
                     def currentPatch = 1
 
-                    def existingTags = docker.image("${DOCKER_IMAGE_NAME}").listTags()
+                    // Fetch existing tags from Docker Hub
+                    def existingTags = sh(script: "docker search ${DOCKER_IMAGE_NAME} | awk '{print \$2}'", returnStdout: true).trim().split('\n')
+
                     existingTags.each { tag ->
                         if (tag =~ /^(1)\.(\d+)\.(\d+)-\d+$/) {
                             int major = Integer.parseInt(RegExp.$1)
