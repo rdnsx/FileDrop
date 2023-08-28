@@ -5,7 +5,6 @@ pipeline {
         DOCKER_HUB_CREDENTIALS = 'DockerHub'
         SOURCE_REPO_URL = 'https://github.com/rdnsx/FileDrop.git'
         DOCKER_IMAGE_NAME = 'rdnsx/filedrop'
-        TAG_NAME = '1.0.0'
         LATEST_TAG = 'latest'
         SSH_USER = 'root'
         SSH_HOST = '91.107.199.72'
@@ -18,6 +17,16 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main', url: env.SOURCE_REPO_URL
+            }
+        }
+
+        stage('Get Latest Tag') {
+            steps {
+                script {
+                    def latestTag = sh(script: "docker search ${DOCKER_IMAGE_NAME} | awk 'NR==2{print \$2}'", returnStdout: true).trim()
+                    echo "Latest Docker tag found: ${latestTag}"
+                    env.TAG_NAME = incrementTag(latestTag)
+                }
             }
         }
         
@@ -78,4 +87,12 @@ pipeline {
             }
         }
     }
+}
+
+}
+
+def incrementTag(tag) {
+    def parts = tag.tokenize('.')
+    parts[-1] = (parts[-1] as Integer) + 1
+    return parts.join('.')
 }
