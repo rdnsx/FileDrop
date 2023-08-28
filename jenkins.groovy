@@ -89,8 +89,6 @@ pipeline {
     }
 }
 
-}
-
 def incrementTag(tag) {
     def parts = tag.tokenize('.')
     parts[-1] = (parts[-1] as Integer) + 1
