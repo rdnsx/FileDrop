@@ -7,6 +7,12 @@ services:
       - /mnt/SSS/DockerData/drop2share.de:/app/uploads
     deploy:
       replicas: 3
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
 
 # Optional add a preexisting proxy network
 networks:
