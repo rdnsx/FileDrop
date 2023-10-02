@@ -14,7 +14,6 @@ services:
         delay: 10s
         order: start-first
 
-# Optional add a preexisting proxy network
 networks:
   default:
     external:
