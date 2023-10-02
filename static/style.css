@@ -37,7 +37,7 @@ body {
 
 .drop-area {
     width: 100%;
-    min-height: 200px;
+    min-height: 400px;
     border: 2px dashed #ff6f16;
     border-radius: 5px;
     display: flex;
@@ -103,4 +103,14 @@ footer a {
 
 #downloadLink {
     color: #ff6f16;
+}
+
+.footer {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #fff;
+    font-size: 14px;
 }
