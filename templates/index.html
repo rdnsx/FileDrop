@@ -9,21 +9,23 @@
     <link rel="manifest" href="/static/site.webmanifest">
 </head>
 <body>
+    
     <div class="container">
         <div class="header">
             <a href="https://rockdasnetz.de" target="_blank">
                 <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
             </a>
-                    </div>
+        </div>
+        <br>
+        <p>Want to share a file fast and secure? Drop2Share let´s you upload a file by draging it into the upload area using an encrypted connection. 
+           It changes the clear filename to a random one to serve you a download link, that works for 24 hour. 
+           24 hours later, your uploaded file will be deleted automaticly without a trace!
+        </p>
         <div class="content">
             <div class="drop-area" id="dropArea">
                 <div class="instructions">
                     <p>Drop & Share your File!</p>
                 </div>
-                <br>
-                <p>Want to share a file fast and secure? Drop2Share let´s you upload a file by draging it into the upload area using an encrypted connection. 
-                   It changes the clear filename to a random one to serve you a download link, that works for 24 hour. 
-                   24 hours later, your uploaded file will be deleted automaticly without a trace!</p>
                 <input type="file" id="fileInput" class="file-input" multiple>
             </div>
             <div id="uploadProgress" class="upload-progress hidden">
