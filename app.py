@@ -28,17 +28,5 @@ def upload():
 def download(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route('/upload', methods=['POST'])
-def file_upload():
-    uploaded_files = request.files.getlist("file")  # "file" is the name attribute in your input HTML element
-    for file in uploaded_files:
-        if file:
-            # Save each file
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-    return 'Files successfully uploaded'
-
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-

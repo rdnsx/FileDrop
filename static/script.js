@@ -59,11 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle selected files
     function handleFiles(files) {
-        // Assuming 'files' is an array of file objects
-        for (let i = 0; i < files.length; i++) {
-          uploadFile(files[i]);
+        if (files.length > 0) {
+            uploadFile(files[0]);
         }
-      }      
+    }
 
     // Upload file
     function uploadFile(file) {
@@ -98,22 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         xhr.send(formData);
     }
-
-    function updateProgress(file, progress) {
-        // Find the progress bar element for the file, assuming there is one for each file
-        const progressBar = document.getElementById('progress-bar-' + file.name);
-        if (progressBar) {
-          progressBar.style.width = progress + '%';
-        }
-      }
-      
-      // You would call this function in the onprogress event of the XMLHttpRequest
-      xhr.upload.onprogress = function(event) {
-        if (event.lengthComputable) {
-          const progress = (event.loaded / event.total) * 100;
-          updateProgress(file, progress);
-        }
-      };      
 
     // Show upload success message
     function showUploadSuccess(response) {
