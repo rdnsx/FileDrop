@@ -1,20 +1,34 @@
-# Use the official Python base image
 FROM python:3.13-slim
 
-# Set the working directory inside the container
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-# Copy the requirements file to the container
 COPY requirements.txt .
-
-# Install the Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application files to the container
-COPY . .
+COPY app.py ./
+COPY templates/ ./templates/
+COPY static/ ./static/
 
-# Expose the container port
+# The uploads directory is a bind mount in production; create it so the image
+# also runs standalone, and hand it to the unprivileged runtime user.
+RUN useradd --system --uid 10001 --no-create-home filedrop \
+    && mkdir -p /app/uploads \
+    && chown -R filedrop:filedrop /app
+
+USER filedrop
+
 EXPOSE 5000
 
-# Run the application
-CMD ["python", "app.py"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=4).status == 200 else 1)"
+
+# Uploads are streamed to a shared volume, so workers block on I/O: threads
+# beat extra processes here. --timeout covers slow large uploads.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", \
+     "--workers", "2", "--threads", "4", "--timeout", "300", \
+     "--access-logfile", "-", "--error-logfile", "-", \
+     "--forwarded-allow-ips", "*", \
+     "app:app"]
