@@ -152,6 +152,19 @@ h1 {
     font-size: 0.9rem;
 }
 
+.batch-result {
+    margin-top: 1.25rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    background-color: var(--accent-soft);
+}
+
+.batch-title {
+    margin: 0 0 0.5rem;
+    font-weight: 700;
+}
+
 .results {
     list-style: none;
     margin: 1.25rem 0 0;
