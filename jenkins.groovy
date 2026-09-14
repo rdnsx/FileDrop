@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+    // Not `agent any`: the built-in node has 2 executors and no docker binary,
+    // so a build landing there dies with `Cannot run program "docker"`
+    // (build 86). The controller carries the label `master`; the Mac0x agents
+    // carry none, so excluding it is enough.
+    agent { label '!master && !built-in' }
 
     environment {
         DOCKER_HUB_CREDENTIALS = 'DockerHub'
