@@ -23,11 +23,14 @@ pipeline {
 
         stage('Test') {
             steps {
-                sh """
-                    docker run --rm -v "\$PWD":/src -w /src python:3.13-slim sh -c '
-                        pip install --no-cache-dir -q -r requirements.txt &&
-                        python test_app.py'
-                """
+                // Build stage, not `docker run -v`: the agent's workspace path
+                // need not exist on the Docker host for this to work.
+                sh "docker build --target test -t ${DOCKER_IMAGE_NAME}:test-${BUILD_NUMBER} ."
+            }
+            post {
+                always {
+                    sh "docker rmi -f ${DOCKER_IMAGE_NAME}:test-${BUILD_NUMBER} || true"
+                }
             }
         }
 

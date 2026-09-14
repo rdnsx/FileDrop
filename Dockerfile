@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.13-slim AS app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -11,6 +11,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py ./
 COPY templates/ ./templates/
 COPY static/ ./static/
+
+
+# Smoke test as a build stage: `docker build --target test .` fails the build if
+# it fails. Runs on any agent, because it needs no bind mount and no socket.
+FROM app AS test
+COPY test_app.py ./
+RUN python test_app.py
+
+
+FROM app AS runtime
 
 # The uploads directory is a bind mount in production; create it so the image
 # also runs standalone, and hand it to the unprivileged runtime user.
