@@ -1,57 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Drop & Share</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Drop2Share - share files over an encrypted connection with randomised filenames. Uploads are deleted automatically after {{ retention_hours }} hours.">
+    <meta name="color-scheme" content="dark light">
+    <title>Drop &amp; Share</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
     <link rel="manifest" href="/static/site.webmanifest">
 </head>
 <body>
-    
-    <div class="container">
-        <div class="header">
-            <br>
-            <br>
-            <a href="https://rockdasnetz.de" target="_blank">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+    <main class="container">
+        <header class="header">
+            <a class="logo" href="https://rockdasnetz.de" target="_blank" rel="noopener">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="RDNSX" width="200" height="60">
             </a>
-            <br>
-            <br>
-            <br>
-            <br>
-            <p style="display: block;"><b>Encrypted File Sharing with Built-In Auto-Removal & a Zero Log Policy!</b></p>
-                <p style="display: block;">
-                    Drop2Share provides a secure file sharing solution with encrypted connections, randomizing filenames for anonymity. 
-                    Uploaded files are accessible for 24 hours and are automatically deleted thereafter, enhancing privacy and security.
-                </p>        
-            <br>
-            <br>
-        </div>
- 
-        <div class="content">
-            <div class="drop-area" id="dropArea">
+            <h1>Share a file. It deletes itself.</h1>
+            <p class="lead">
+                Uploads travel over an encrypted TLS connection and are stored under a
+                random filename, so the name gives nothing away. Every file is removed
+                automatically after {{ retention_hours }} hours. No accounts, no tracking.
+            </p>
+        </header>
+
+        <section class="content">
+            <div class="drop-area" id="dropArea" role="button" tabindex="0"
+                 aria-describedby="dropHint" aria-label="Choose files to upload">
                 <div class="instructions">
-                    <p>Drop & Share your File!</p>
+                    <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" />
+                        <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+                    </svg>
+                    <p class="drop-title">Drop &amp; Share your file</p>
+                    <p class="drop-hint" id="dropHint">Drag it here, or tap to browse &middot; up to {{ max_upload_mb }} MB per file</p>
                 </div>
                 <input type="file" id="fileInput" class="file-input" multiple>
             </div>
-            <div id="uploadProgress" class="upload-progress hidden">
-                <div class="progress-bar"></div>
-            </div>
-            <div id="uploadSuccess" class="upload-success hidden">
-                <p class="success-message">File uploaded successfully!</p>
-                <p>Filename: <span id="fileName"></span></p>
-                <p>Download Link: <a id="downloadLink" href="" target="_blank"></a></p>
-            </div>
-        </div>
-    </div>
-    
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
 
-    <div class="footer">
-        © 2023 Build {{BUILD_NUMBER}} by RDNSX
-    </div>
+            <div id="uploadProgress" class="upload-progress" hidden>
+                <div class="progress-track">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <p class="progress-label" id="progressLabel" role="status" aria-live="polite"></p>
+            </div>
+
+            <p class="error-message" id="errorMessage" role="alert" hidden></p>
+
+            <ul class="results" id="results" aria-live="polite"></ul>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>&copy; RDNSX &middot; Build {{BUILD_NUMBER}}</p>
+    </footer>
+
+    <template id="resultTemplate">
+        <li class="result">
+            <p class="result-name"></p>
+            <div class="result-link">
+                <a class="result-url" href="" target="_blank" rel="noopener"></a>
+                <button type="button" class="copy-button">Copy</button>
+            </div>
+            <p class="result-expiry"></p>
+        </li>
+    </template>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

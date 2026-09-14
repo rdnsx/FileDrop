@@ -1,91 +1,77 @@
-# FileDrop
+# FileDrop / drop2share.de
 
-This is a simple web application built using Flask that allows users to upload files to the server. The uploaded files are stored in a secure manner, and users are provided with a download link to access their uploaded files.
+A small Flask app for sharing a file without an account: drop a file, get a link,
+the file is deleted automatically after 24 hours. Runs at
+[drop2share.de](https://drop2share.de).
 
-## Features
+## What it does and does not do
 
-- Drag and drop file upload support
-- Upload progress tracking
-- Secure filename generation
-- Download link for uploaded files
-
-## Prerequisites
-
-Before running this application, ensure you have the following installed:
-
-- Python 3.x
-- Flask
-
-## Installation
-
-1. Clone the repository to your local machine:
-
-```bash
-git clone https://github.com/your-username/file-upload-app.git
-cd file-upload-app
-```
-
-2. Create a virtual environment (optional but recommended):
-
-```bash
-python -m venv venv
-source venv/bin/activate    # On Windows: venv\Scripts\activate
-```
-
-3. Install the required dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-## Usage
-
-1. Run the Flask application:
-
-```bash
-python app.py
-```
-
-2. Open your web browser and navigate to `http://localhost:5000/`.
-
-3. Drag and drop a file onto the drop area or click on the drop area to select a file using the file input.
-
-4. The upload progress will be displayed, and once the file is uploaded successfully, you will see a success message with the filename and a download link.
+- Transport is encrypted (TLS, terminated by the reverse proxy) and HSTS is preloaded.
+- Stored files are **not** encrypted at rest. Anyone with filesystem access to the
+  upload volume can read them. Do not describe this service as encrypted storage.
+- Filenames are replaced with 16 random hex characters (64 bit), so a link cannot
+  be guessed and the name leaks nothing. The original name is only used as the
+  download name.
+- There is no authentication. Anyone who can reach the site can upload, subject to
+  a per-IP rate limit and a size limit.
+- Uploads are always served as `Content-Disposition: attachment` with `nosniff` and
+  a `sandbox` CSP, so uploaded HTML or SVG cannot execute on the drop2share origin.
 
 ## Configuration
 
-By default, the uploaded files are stored in the `uploads/` folder within the application directory. You can change this by modifying the `UPLOAD_FOLDER` variable in `app.py`:
+All settings come from environment variables:
 
-```python
-app.config['UPLOAD_FOLDER'] = 'your_custom_upload_folder/'
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `UPLOAD_FOLDER` | `uploads/` | Where files are written. |
+| `MAX_UPLOAD_MB` | `512` | Per-request size limit; larger uploads get HTTP 413. |
+| `RETENTION_HOURS` | `24` | Shown on the page; must match the cleanup cron. |
+| `RATE_LIMIT_UPLOADS` | `30` | Uploads per IP per window (per replica). |
+| `RATE_LIMIT_WINDOW` | `3600` | Rate-limit window in seconds. |
+| `MIN_FREE_GB` | `3` | Refuse uploads below this free space (HTTP 507). |
+
+`MIN_FREE_GB` is not cosmetic: in production the GlusterFS brick shares a
+filesystem with the node root, so filling the upload volume stops the whole swarm.
+
+## Local development
+
+```bash
+git clone https://github.com/rdnsx/FileDrop.git
+cd FileDrop
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+python app.py            # http://127.0.0.1:5000/
+python test_app.py       # smoke test
 ```
 
-## Notes
+`python app.py` starts the Flask development server bound to localhost with the
+debugger off. Never expose it: production runs gunicorn, see the `Dockerfile`.
 
-- This application is intended for educational purposes and may not be suitable for production environments without further security considerations.
+## Docker
 
-- Ensure that the server has sufficient permissions to write to the `UPLOAD_FOLDER` directory.
+```bash
+docker build -t rdnsx/filedrop .
+docker run -d -p 3266:5000 -v /path/to/uploads:/app/uploads --name FileDrop rdnsx/filedrop
+```
 
-# Usage with Docker
+The container runs as uid `10001`, so the mounted upload directory must be
+writable by that uid (`chown -R 10001:10001 /path/to/uploads`).
 
-docker pull rdnsx/filedrop
+## Production
 
-docker run -d -p 3266:5000 -v /path/to/local/filedrop/:/app/uploads --name FileDrop rdnsx/filedrop 
+`jenkins.groovy` builds the image, runs the smoke test, copies
+`docker-compose-swarm.yml` and `delete2share.sh` to the swarm and deploys the
+stack. The app sits behind Nginx Proxy Manager, which terminates TLS and sets
+`X-Forwarded-*`; `ProxyFix` trusts exactly one hop so links are generated as
+`https://`.
+
+`delete2share.sh` runs hourly from cron on the swarm and deletes uploads older
+than `RETENTION_MINUTES` (1440 by default). It is currently scheduled on a single
+node — if that node is down, files are not removed.
+
+Set `client_max_body_size` in the proxy to at least `MAX_UPLOAD_MB`, otherwise the
+proxy rejects large uploads before the app can return a useful error.
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- This application was built using Flask, a micro web framework for Python.
-
-- The front-end drag-and-drop functionality was inspired by various online tutorials and examples.
-
-## Contributing
-
-Contributions are welcome! If you find any issues or have suggestions for improvements, feel free to open an issue or submit a pull request.
-
-Thank you for using this file upload web application! If you have any questions or need further assistance, please don't hesitate to contact us.
-
-Happy uploading!
+MIT.

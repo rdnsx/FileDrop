@@ -1,0 +1,13 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+jenkins.groovy
+README.md
+LICENSE
+uploads/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store

@@ -2,109 +2,131 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropArea = document.getElementById('dropArea');
     const fileInput = document.getElementById('fileInput');
     const uploadProgress = document.getElementById('uploadProgress');
-    const progressBar = document.querySelector('.progress-bar');
-    const uploadSuccess = document.getElementById('uploadSuccess');
-    const fileName = document.getElementById('fileName');
-    const downloadLink = document.getElementById('downloadLink');
+    const progressBar = document.getElementById('progressBar');
+    const progressLabel = document.getElementById('progressLabel');
+    const errorMessage = document.getElementById('errorMessage');
+    const results = document.getElementById('results');
+    const resultTemplate = document.getElementById('resultTemplate');
 
-    // Prevent default drag behaviors
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, preventDefaults, false);
-        document.body.addEventListener(eventName, preventDefaults, false);
+    let busy = false;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(name => {
+        dropArea.addEventListener(name, preventDefaults);
+        document.body.addEventListener(name, preventDefaults);
     });
+    ['dragenter', 'dragover'].forEach(name =>
+        dropArea.addEventListener(name, () => dropArea.classList.add('highlight'))
+    );
+    ['dragleave', 'drop'].forEach(name =>
+        dropArea.addEventListener(name, () => dropArea.classList.remove('highlight'))
+    );
 
-    // Highlight drop area when item is dragged over it
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea.addEventListener(eventName, highlight, false);
+    dropArea.addEventListener('drop', event => handleFiles(event.dataTransfer.files));
+    dropArea.addEventListener('click', () => fileInput.click());
+    dropArea.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            fileInput.click();
+        }
     });
+    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
 
-    // Unhighlight drop area when item is dragged out of it
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, unhighlight, false);
-    });
-
-    // Handle dropped files
-    dropArea.addEventListener('drop', handleDrop, false);
-
-    // Open file input when drop area is clicked
-    dropArea.addEventListener('click', () => {
-        fileInput.click();
-    });
-
-    // Handle file selection
-    fileInput.addEventListener('change', handleFiles, false);
-
-    // Prevent default drag behaviors
     function preventDefaults(event) {
         event.preventDefault();
         event.stopPropagation();
     }
 
-    // Highlight drop area
-    function highlight() {
-        dropArea.classList.add('highlight');
+    function showError(text) {
+        errorMessage.textContent = text;
+        errorMessage.hidden = false;
     }
 
-    // Unhighlight drop area
-    function unhighlight() {
-        dropArea.classList.remove('highlight');
-    }
-
-    // Handle dropped files
-    function handleDrop(event) {
-        const files = event.dataTransfer.files;
-        fileInput.files = files;
-        handleFiles(files);
-    }
-
-    // Handle selected files
-    function handleFiles(files) {
-        if (files.length > 0) {
-            uploadFile(files[0]);
+    async function handleFiles(fileList) {
+        const files = Array.from(fileList || []);
+        fileInput.value = '';
+        if (!files.length || busy) {
+            return;
         }
-    }
 
-    // Upload file
-    function uploadFile(file) {
-        const url = '/upload';
-        const formData = new FormData();
-        formData.append('file', file);
+        busy = true;
+        errorMessage.hidden = true;
+        uploadProgress.hidden = false;
 
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-
-        xhr.upload.addEventListener('progress', e => {
-            const progress = (e.loaded / e.total) * 100;
-            progressBar.style.width = `${progress}%`;
-        });
-
-        xhr.addEventListener('load', () => {
-            if (xhr.status === 200) {
-                const response = JSON.parse(xhr.responseText);
-                showUploadSuccess(response);
-            } else {
-                console.error('Upload error');
+        for (let i = 0; i < files.length; i += 1) {
+            const file = files[i];
+            const position = files.length > 1 ? `(${i + 1}/${files.length}) ` : '';
+            progressBar.style.width = '0%';
+            progressLabel.textContent = `${position}Uploading ${file.name}…`;
+            try {
+                addResult(await uploadFile(file, percent => {
+                    progressBar.style.width = `${percent}%`;
+                }));
+            } catch (error) {
+                showError(`${file.name}: ${error.message}`);
+                break;
             }
-        });
+        }
 
-        xhr.addEventListener('error', () => {
-            console.error('Upload error');
-        });
-
-        xhr.addEventListener('abort', () => {
-            console.log('Upload aborted');
-        });
-
-        xhr.send(formData);
+        uploadProgress.hidden = true;
+        progressLabel.textContent = '';
+        busy = false;
     }
 
-    // Show upload success message
-    function showUploadSuccess(response) {
-        fileName.textContent = response.filename;
-        downloadLink.href = response.download_link;
-        downloadLink.textContent = response.download_link;
-        
-        uploadProgress.classList.add('hidden');
-        uploadSuccess.classList.remove('hidden');
+    function uploadFile(file, onProgress) {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload', true);
+            xhr.responseType = 'json';
+
+            xhr.upload.addEventListener('progress', event => {
+                if (event.lengthComputable) {
+                    onProgress((event.loaded / event.total) * 100);
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                const body = xhr.response;
+                if (xhr.status === 200 && body && body.download_link) {
+                    resolve(body);
+                } else if (xhr.status === 413) {
+                    reject(new Error('File is too large.'));
+                } else if (xhr.status === 429) {
+                    reject(new Error('Too many uploads. Please try again later.'));
+                } else {
+                    reject(new Error((body && body.message) || `Upload failed (HTTP ${xhr.status}).`));
+                }
+            });
+            xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
+            xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled.')));
+
+            xhr.send(formData);
+        });
+    }
+
+    function addResult(response) {
+        const node = resultTemplate.content.cloneNode(true);
+        const link = node.querySelector('.result-url');
+        const copyButton = node.querySelector('.copy-button');
+
+        node.querySelector('.result-name').textContent = response.filename;
+        link.href = response.download_link;
+        link.textContent = response.download_link;
+        node.querySelector('.result-expiry').textContent =
+            `Deleted automatically after ${response.expires_in_hours} hours.`;
+
+        copyButton.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(response.download_link);
+                copyButton.textContent = 'Copied';
+            } catch (error) {
+                copyButton.textContent = 'Copy failed';
+            }
+            setTimeout(() => { copyButton.textContent = 'Copy'; }, 2000);
+        });
+
+        results.prepend(node);
     }
 });

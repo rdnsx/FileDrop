@@ -1,10 +1,22 @@
-version: '3.8'
-
 services:
   filedrop:
-    image: rdnsx/filedrop
+    image: rdnsx/filedrop:latest
+    environment:
+      MAX_UPLOAD_MB: "512"
+      RETENTION_HOURS: "24"
+      RATE_LIMIT_UPLOADS: "30"
+      RATE_LIMIT_WINDOW: "3600"
+      # Refuse uploads below this free space: the Gluster brick shares the
+      # node root filesystem, so a full volume stops the whole swarm.
+      MIN_FREE_GB: "3"
     volumes:
       - /mnt/SSS/DockerData/drop2share.de:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     deploy:
       replicas: 3
       restart_policy:
@@ -13,8 +25,18 @@ services:
         parallelism: 1
         delay: 10s
         order: start-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: start-first
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          memory: 64M
 
 networks:
   default:
-    external:
-      name: npm_default
+    name: npm_default
+    external: true
