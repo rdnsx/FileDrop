@@ -7,6 +7,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorMessage = document.getElementById('errorMessage');
     const results = document.getElementById('results');
     const resultTemplate = document.getElementById('resultTemplate');
+    const batchResult = document.getElementById('batchResult');
+    const batchTitle = document.getElementById('batchTitle');
+    const batchUrl = document.getElementById('batchUrl');
+    const batchCopy = document.getElementById('batchCopy');
+    const batchExpiry = document.getElementById('batchExpiry');
 
     let busy = false;
 
@@ -50,26 +55,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
         busy = true;
         errorMessage.hidden = true;
+        batchResult.hidden = true;
         uploadProgress.hidden = false;
 
+        const uploaded = [];
         for (let i = 0; i < files.length; i += 1) {
             const file = files[i];
             const position = files.length > 1 ? `(${i + 1}/${files.length}) ` : '';
             progressBar.style.width = '0%';
             progressLabel.textContent = `${position}Uploading ${file.name}…`;
             try {
-                addResult(await uploadFile(file, percent => {
+                const response = await uploadFile(file, percent => {
                     progressBar.style.width = `${percent}%`;
-                }));
+                });
+                addResult(response);
+                uploaded.push(response);
             } catch (error) {
                 showError(`${file.name}: ${error.message}`);
                 break;
             }
         }
 
+        if (uploaded.length > 1) {
+            progressLabel.textContent = 'Preparing the archive link…';
+            await showBatchLink(uploaded);
+        }
+
         uploadProgress.hidden = true;
         progressLabel.textContent = '';
         busy = false;
+    }
+
+    // One shareable link for everything that was just uploaded.
+    async function showBatchLink(uploaded) {
+        try {
+            const response = await fetch('/batch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+                body: JSON.stringify({
+                    files: uploaded.map(item => ({id: item.id, name: item.filename})),
+                }),
+            });
+            const body = await response.json();
+            if (!response.ok || !body.zip_link) {
+                throw new Error(body.message || `HTTP ${response.status}`);
+            }
+            batchTitle.textContent = `All ${body.file_count} files as one archive`;
+            batchUrl.href = body.zip_link;
+            batchUrl.textContent = body.zip_link;
+            batchExpiry.textContent = `Deleted automatically after ${body.expires_in_hours} hours.`;
+            wireCopy(batchCopy, body.zip_link);
+            batchResult.hidden = false;
+        } catch (error) {
+            // The individual links above still work, so this is not fatal.
+            showError(`Archive link unavailable: ${error.message}`);
+        }
+    }
+
+    function wireCopy(button, text) {
+        button.onclick = async () => {
+            try {
+                await navigator.clipboard.writeText(text);
+                button.textContent = 'Copied';
+            } catch (error) {
+                button.textContent = 'Copy failed';
+            }
+            setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+        };
     }
 
     function uploadFile(file, onProgress) {
@@ -117,15 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
         node.querySelector('.result-expiry').textContent =
             `Deleted automatically after ${response.expires_in_hours} hours.`;
 
-        copyButton.addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(response.download_link);
-                copyButton.textContent = 'Copied';
-            } catch (error) {
-                copyButton.textContent = 'Copy failed';
-            }
-            setTimeout(() => { copyButton.textContent = 'Copy'; }, 2000);
-        });
+        wireCopy(copyButton, response.download_link);
 
         results.prepend(node);
     }

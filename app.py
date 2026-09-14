@@ -5,6 +5,7 @@ import re
 import secrets
 import shutil
 import time
+import zipfile
 from collections import defaultdict, deque
 from threading import Lock
 
@@ -34,6 +35,8 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 # 8 bytes -> 16 hex chars (64 bit), optional short alphanumeric extension.
 STORED_NAME_RE = re.compile(r"\A[0-9a-f]{16}(\.[A-Za-z0-9]{1,12})?\Z")
+BATCH_SUFFIX = ".d2sbatch"
+MAX_BATCH_FILES = 200
 EXTENSION_RE = re.compile(r"\A\.[A-Za-z0-9]{1,12}\Z")
 
 _hits: "defaultdict[str, deque]" = defaultdict(deque)
@@ -66,6 +69,81 @@ def _stored_name(original_filename):
     return secrets.token_hex(8) + extension.lower()
 
 
+def _upload_path(stored):
+    return os.path.join(app.config["UPLOAD_FOLDER"], stored)
+
+
+def _write_manifest(entries):
+    """One tiny file next to the uploads, so the existing 24h cleanup expires
+    the manifest together with the files it points at. No extra state to reap."""
+    token = secrets.token_hex(8) + BATCH_SUFFIX
+    with open(_upload_path(token), "w", encoding="utf-8") as handle:
+        for stored, name in entries:
+            handle.write(f"{stored}\t{name}\n")
+    return token
+
+
+def _read_manifest(token):
+    try:
+        with open(_upload_path(token), encoding="utf-8") as handle:
+            rows = [line.rstrip("\n").split("\t", 1) for line in handle if line.strip()]
+    except OSError:
+        return None
+    return [(s, n) for s, n in rows if STORED_NAME_RE.match(s)]
+
+
+def _unique_names(entries):
+    """Two uploads can share a filename; a zip with duplicates confuses tools."""
+    seen, out = {}, []
+    for stored, name in entries:
+        if name in seen:
+            seen[name] += 1
+            root, ext = os.path.splitext(name)
+            name = f"{root} ({seen[name]}){ext}"
+        else:
+            seen[name] = 0
+        out.append((stored, name))
+    return out
+
+
+class _ChunkSink:
+    """Unseekable sink for ZipFile; we drain it as the archive is written."""
+
+    def __init__(self):
+        self.buffer = bytearray()
+
+    def write(self, data):
+        self.buffer.extend(data)
+        return len(data)
+
+    def flush(self):
+        pass
+
+
+def _stream_zip(entries):
+    sink = _ChunkSink()
+    # ZIP_STORED, not DEFLATE: uploads are arbitrary (often already compressed)
+    # and the service runs on a 0.5 CPU limit. Speed beats a few percent.
+    with zipfile.ZipFile(sink, "w", zipfile.ZIP_STORED) as archive:
+        for stored, name in entries:
+            path = _upload_path(stored)
+            if not os.path.isfile(path):
+                continue
+            with archive.open(name, "w", force_zip64=True) as target, open(path, "rb") as source:
+                while True:
+                    chunk = source.read(65536)
+                    if not chunk:
+                        break
+                    target.write(chunk)
+                    if len(sink.buffer) >= 262144:
+                        yield bytes(sink.buffer)
+                        sink.buffer.clear()
+            if sink.buffer:
+                yield bytes(sink.buffer)
+                sink.buffer.clear()
+    yield bytes(sink.buffer)
+
+
 @app.after_request
 def set_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -86,7 +164,7 @@ def set_security_headers(response):
 @app.errorhandler(HTTPException)
 def handle_http_error(error):
     """JSON for the API, never a traceback - the debugger is gone for good."""
-    if request.path.startswith("/upload") or request.accept_mimetypes.best == "application/json":
+    if request.path.startswith(("/upload", "/batch")) or request.accept_mimetypes.best == "application/json":
         return jsonify({"error": error.name, "message": error.description}), error.code
     return error
 
@@ -124,6 +202,7 @@ def upload():
 
     return jsonify(
         {
+            "id": stored,
             "filename": uploaded.filename,
             "download_link": download_link,
             "expires_in_hours": RETENTION_HOURS,
@@ -132,7 +211,7 @@ def upload():
 
 
 def _send_upload(stored, download_name):
-    if not STORED_NAME_RE.match(stored):
+    if stored.endswith(BATCH_SUFFIX) or not STORED_NAME_RE.match(stored):
         return jsonify({"error": "Not Found", "message": "Unknown file."}), 404
 
     response = send_from_directory(
@@ -156,6 +235,65 @@ def download_named(stored, download_name):
 def download(stored):
     """Legacy link shape - keeps links from earlier builds alive."""
     return _send_upload(stored, stored)
+
+
+@app.route("/batch", methods=["POST"])
+def batch():
+    """Bundle an already-uploaded set into one shareable zip link."""
+    if _rate_limited(request.remote_addr or "unknown"):
+        return jsonify({"error": "Too Many Requests", "message": "Slow down and try again later."}), 429
+
+    payload = request.get_json(silent=True) or {}
+    items = payload.get("files")
+    if not isinstance(items, list) or not 2 <= len(items) <= MAX_BATCH_FILES:
+        return jsonify({"error": "Bad Request", "message": "Between 2 and 200 files are required."}), 400
+
+    entries = []
+    for item in items:
+        stored = (item or {}).get("id", "") if isinstance(item, dict) else ""
+        if stored.endswith(BATCH_SUFFIX) or not STORED_NAME_RE.match(stored):
+            return jsonify({"error": "Bad Request", "message": "Unknown file in batch."}), 400
+        if not os.path.isfile(_upload_path(stored)):
+            return jsonify({"error": "Not Found", "message": "A file in the batch has expired."}), 404
+        name = secure_filename(str(item.get("name") or "")) or stored
+        entries.append((stored, name))
+
+    token = _write_manifest(_unique_names(entries))
+    archive_name = f"drop2share-{len(entries)}-files.zip"
+    return jsonify(
+        {
+            "zip_link": request.host_url.rstrip("/") + f"/zip/{token}/{archive_name}",
+            "file_count": len(entries),
+            "expires_in_hours": RETENTION_HOURS,
+        }
+    )
+
+
+def _send_zip(token, archive_name):
+    if not token.endswith(BATCH_SUFFIX) or not STORED_NAME_RE.match(token):
+        return jsonify({"error": "Not Found", "message": "Unknown archive."}), 404
+
+    entries = _read_manifest(token)
+    if not entries:
+        return jsonify({"error": "Not Found", "message": "Unknown or expired archive."}), 404
+
+    response = app.response_class(_stream_zip(entries), mimetype="application/zip")
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="{secure_filename(archive_name) or "drop2share.zip"}"'
+    )
+    response.headers["Content-Security-Policy"] = "sandbox"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@app.route("/zip/<token>/<archive_name>")
+def download_zip_named(token, archive_name):
+    return _send_zip(token, archive_name)
+
+
+@app.route("/zip/<token>")
+def download_zip(token):
+    return _send_zip(token, "drop2share.zip")
 
 
 if __name__ == "__main__":
